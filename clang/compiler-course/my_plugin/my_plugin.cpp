@@ -144,3 +144,4 @@ private:
 
 static clang::FrontendPluginRegistry::Add<FindNamedClassAction>
     X("ClangPlugin", "set prefixes");
+//
