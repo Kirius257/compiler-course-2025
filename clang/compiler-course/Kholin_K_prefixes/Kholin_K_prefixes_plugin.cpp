@@ -5,6 +5,7 @@
 #include "clang/Rewrite/Core/Rewriter.h"
 #include "llvm/Support/raw_ostream.h"
 #include <fstream>
+#include <optional>
 
 using namespace clang;
 
@@ -14,7 +15,7 @@ public:
   explicit FindNamedClassVisitor(ASTContext *Context, Rewriter &R)
       : Context(Context), Rewrite(R) {}
 
-  std::string getVarPrefix(const VarDecl *Decl) {
+  std::optional<std::string> getVarPrefix(const VarDecl *Decl) {
     if (Decl->isFileVarDecl() && !Decl->isStaticLocal()) {
       return "global_";
     } else if (Decl->isStaticLocal()) {
@@ -24,7 +25,7 @@ public:
     } else if (isa<ParmVarDecl>(Decl)) {
       return "param_";
     }
-    return "";
+    return std::nullopt;
   }
 
   void renameVariable(Decl *Decl, SourceLocation StartLocation, const std::string &VarPrefix) {
@@ -45,9 +46,9 @@ public:
     if (!Decl)
       return false;
 
-    std::string VarPrefix = getVarPrefix(Decl);
-    if (!VarPrefix.empty()) {
-      renameVariable(Decl, Decl->getLocation(), VarPrefix);
+    std::optional<std::string> VarPrefix = getVarPrefix(Decl);
+    if (VarPrefix.has_value()) {
+      renameVariable(Decl, Decl->getLocation(), VarPrefix.value());
     }
 
     return true;
@@ -57,9 +58,9 @@ public:
     if (!Decl)
       return false;
 
-    std::string VarPrefix = getVarPrefix(Decl);
-    if (!VarPrefix.empty()) {
-      renameVariable(Decl, Decl->getLocation(), VarPrefix);
+    std::optional<std::string> VarPrefix = getVarPrefix(Decl);
+    if (VarPrefix.has_value()) {
+      renameVariable(Decl, Decl->getLocation(), VarPrefix.value());
     }
 
     return true;
@@ -73,9 +74,9 @@ public:
     if (!Decl)
       return false;
 
-    std::string VarPrefix = getVarPrefix(Decl);
-    if (!VarPrefix.empty()) {
-      renameVariable(Decl, Expr->getLocation(), VarPrefix);
+    std::optional<std::string> VarPrefix = getVarPrefix(Decl);
+    if (VarPrefix.has_value()) {
+      renameVariable(Decl, Expr->getLocation(), VarPrefix.value());
     }
 
     return true;
