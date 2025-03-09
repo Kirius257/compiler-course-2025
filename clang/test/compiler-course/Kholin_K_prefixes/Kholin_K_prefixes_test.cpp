@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -load %llvmshlibdir/ClangPlugin_KholinKirill_3822B1FI3_ClangAST%pluginext -plugin ClangPlugin %s -fsyntax-only 2>&1 | FileCheck -v %s
+// RUN: %clang_cc1 -load %llvmshlibdir/PrefixesPlugin_KholinKirill_FIIT3_ClangAST%pluginext -plugin PrefixesPlugin_KholinKirill_FIIT3_ClangAST %s -fsyntax-only 2>&1 | FileCheck -v %s
 
 // CHECK: Found variable: var1 -> global_var1
 // CHECK: Found parameter: a -> param_a

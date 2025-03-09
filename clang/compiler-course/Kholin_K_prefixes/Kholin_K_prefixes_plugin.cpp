@@ -144,5 +144,4 @@ private:
 };
 
 static clang::FrontendPluginRegistry::Add<FindNamedClassAction>
-    X("ClangPlugin", "set prefixes");
-//
+    X("PrefixesPlugin_KholinKirill_FIIT3_ClangAST", "set prefixes variables");

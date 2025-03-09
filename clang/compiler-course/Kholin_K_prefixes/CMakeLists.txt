@@ -1,6 +1,6 @@
-set(Title "ClangPlugin")
+set(Title "PrefixesPlugin")
 set(Student "KholinKirill")
-set(Group "3822B1FI3")
+set(Group "FIIT3")
 set(TARGET_NAME "${Title}_${Student}_${Group}_ClangAST")
 
 file(GLOB_RECURSE SOURCES *.cpp *.h *.hpp)
