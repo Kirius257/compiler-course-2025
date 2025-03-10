@@ -58,12 +58,7 @@ public:
   bool VisitParmVarDecl(ParmVarDecl *Decl) {
     if (!Decl)
       return false;
-
-    std::optional<std::string> VarPrefix = getVarPrefix(Decl);
-    if (VarPrefix.has_value()) {
-      renameVariable(Decl, Decl->getLocation(), VarPrefix.value());
-    }
-
+    //see VisitDeclRefExpr
     return true;
   }
 
@@ -75,13 +70,12 @@ public:
     if (!Decl)
       return false;
 
-    if (isa<ParmVarDecl>(Decl) && Flag.count(Decl) == 0) {
+    if (isa<ParmVarDecl>(Decl)) {
       std::optional<std::string> VarPrefix = getVarPrefix(Decl);
       if (VarPrefix.has_value()) {
         renameVariable(Decl, Expr->getLocation(), VarPrefix.value());
-        Flag.insert(Decl);
       }
-    } else if (!isa<ParmVarDecl>(Decl)) {
+    } else {
       std::optional<std::string> VarPrefix = getVarPrefix(Decl);
       if (VarPrefix.has_value()) {
         renameVariable(Decl, Expr->getLocation(), VarPrefix.value());
@@ -94,7 +88,6 @@ public:
 private:
   ASTContext *Context;
   Rewriter &Rewrite;
-  std::set<const VarDecl *> Flag;
 };
 
 class FindNamedClassConsumer : public clang::ASTConsumer {
