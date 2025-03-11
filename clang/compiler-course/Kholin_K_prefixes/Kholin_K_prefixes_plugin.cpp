@@ -55,13 +55,12 @@ public:
     return true;
   }
 
-  bool VisitParmVarDecl(ParmVarDecl *Decl) {
+ bool VisitParmVarDecl(ParmVarDecl *Decl) {
     if (!Decl)
       return false;
     //see VisitDeclRefExpr
     return true;
   }
-
   bool VisitDeclRefExpr(DeclRefExpr *Expr) {
     if (!Expr)
       return false;
