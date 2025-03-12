@@ -29,8 +29,13 @@ public:
     return std::nullopt;
   }
 
-  void renameVariable(Decl *Decl, SourceLocation StartLocation, const std::string &VarPrefix) {
-    std::string NewID = VarPrefix + cast<VarDecl>(Decl)->getNameAsString();
+  void renameVariable(Decl *Decl, SourceLocation StartLocation) {
+    if (!Decl) return;
+
+    std::optional<std::string> VarPrefix = getVarPrefix(cast<VarDecl>(Decl));
+    if (!VarPrefix.has_value()) return;
+
+    std::string NewID = VarPrefix.value() + cast<VarDecl>(Decl)->getNameAsString();
     SourceLocation EndLocation =
         StartLocation.getLocWithOffset(cast<VarDecl>(Decl)->getNameAsString().length());
     Rewrite.ReplaceText(SourceRange(StartLocation, EndLocation), NewID);
@@ -44,43 +49,17 @@ public:
   }
 
   bool VisitVarDecl(VarDecl *Decl) {
-    if (!Decl)
-      return false;
-
-    std::optional<std::string> VarPrefix = getVarPrefix(Decl);
-    if (VarPrefix.has_value()) {
-      renameVariable(Decl, Decl->getLocation(), VarPrefix.value());
-    }
-
+    if (!Decl) return false;
+    renameVariable(Decl, Decl->getLocation());
     return true;
   }
 
- bool VisitParmVarDecl(ParmVarDecl *Decl) {
-    if (!Decl)
-      return false;
-    //see VisitDeclRefExpr
-    return true;
-  }
   bool VisitDeclRefExpr(DeclRefExpr *Expr) {
-    if (!Expr)
-      return false;
+    if (!Expr) return false;
 
     VarDecl *Decl = dyn_cast<VarDecl>(Expr->getDecl());
-    if (!Decl)
-      return false;
 
-    if (isa<ParmVarDecl>(Decl)) {
-      std::optional<std::string> VarPrefix = getVarPrefix(Decl);
-      if (VarPrefix.has_value()) {
-        renameVariable(Decl, Expr->getLocation(), VarPrefix.value());
-      }
-    } else {
-      std::optional<std::string> VarPrefix = getVarPrefix(Decl);
-      if (VarPrefix.has_value()) {
-        renameVariable(Decl, Expr->getLocation(), VarPrefix.value());
-      }
-    }
-
+    renameVariable(Decl, Expr->getLocation());
     return true;
   }
 
