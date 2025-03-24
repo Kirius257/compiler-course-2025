@@ -12,7 +12,7 @@ namespace {
 
 void visitor(Function &F) {
     errs() << "Start processing function: " << F.getName() << "\n";
-    for (auto &BB : F) {//function cycle block
+    for (auto &BB : F) {//function cycle block//
         errs() << ">Start processing basic block" << "\n";
         std::vector<BinaryOperator*> DivsToReplace;
         for (auto &I : BB) {//instruction cycle block
