@@ -17,7 +17,8 @@ void visitor(llvm::Function &F) {
             BinOp->getOpcode() == llvm::Instruction::UDiv) {
           llvm::Value *Divisor = BinOp->getOperand(
               1); // get right operand from result = lhs op rhs
-          if (llvm::ConstantInt *ConstantDivisor = llvm::dyn_cast<llvm::ConstantInt>(Divisor)) {
+          if (llvm::ConstantInt *ConstantDivisor =
+                  llvm::dyn_cast<llvm::ConstantInt>(Divisor)) {
             if (ConstantDivisor->getValue() == 0) { // value of rhs
               continue;
             }
@@ -34,8 +35,9 @@ void visitor(llvm::Function &F) {
     }
 
     for (auto *BinOp : DivsToReplace) { // replace div with shift
-      uint32_t ShiftAmount =
-          llvm::cast<llvm::ConstantInt>(BinOp->getOperand(1))->getValue().exactLogBase2();
+      uint32_t ShiftAmount = llvm::cast<llvm::ConstantInt>(BinOp->getOperand(1))
+                                 ->getValue()
+                                 .exactLogBase2();
 
       llvm::IRBuilder<> Builder(BinOp); // initialize builder
 
@@ -55,7 +57,8 @@ void visitor(llvm::Function &F) {
 }
 
 struct DivOptPass : llvm::PassInfoMixin<DivOptPass> {
-  llvm::PreservedAnalyses run(llvm::Function &F, llvm::FunctionAnalysisManager &) {
+  llvm::PreservedAnalyses run(llvm::Function &F,
+                              llvm::FunctionAnalysisManager &) {
     visitor(F);
     return llvm::PreservedAnalyses::all(); // preserve all passes
   }
