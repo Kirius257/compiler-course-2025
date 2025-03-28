@@ -1,6 +1,6 @@
 ; RUN: opt -load-pass-plugin %llvmshlibdir/DivOptPass_KholinKirill_FIIT3_LLVM_IR%pluginext -passes=div-opt-pass -S %s | FileCheck %s
 
-; CHECK: define dso_local noundef i32 @_Z18unsigned_part_testjj(i32 noundef %lhs1, i32 noundef %lhs2) {
+; CHECK-LABEL: define dso_local noundef i32 @_Z18unsigned_part_testjj(i32 noundef %lhs1, i32 noundef %lhs2) {
 ; CHECK-NEXT: entry:
 ; CHECK-NEXT: %0 = lshr i32 %lhs1, 1
 ; CHECK-NEXT: %div1 = udiv i32 %lhs1, -2
@@ -27,7 +27,7 @@ entry:
 ;  return result_type_OK1 + UB1 + result_type_OK2;
 ;}
 
-; CHECK: define dso_local noundef i32 @_Z17signed_part1_testii(i32 noundef %lhs1, i32 noundef %lhs2) {
+; CHECK-LABEL: define dso_local noundef i32 @_Z17signed_part1_testii(i32 noundef %lhs1, i32 noundef %lhs2) {
 ; CHECK-NEXT: entry:
 ; CHECK-NEXT: %0 = ashr i32 %lhs1, 6
 ; CHECK-NEXT: %div1 = sdiv i32 %lhs1, -64
@@ -71,7 +71,7 @@ entry:
 ;         Not_UB2 + result_type_OK5 + UB2;
 ;}
 
-; CHECK: define dso_local noundef i32 @_Z17signed_part2_testii(i32 noundef %lhs1, i32 noundef %lhs2) {
+; CHECK-LABEL: define dso_local noundef i32 @_Z17signed_part2_testii(i32 noundef %lhs1, i32 noundef %lhs2) {
 ; CHECK-NEXT: entry:
 ; CHECK-NEXT: %div = udiv i32 %lhs1, 3
 ; CHECK: %div1 = udiv i32 %sub, 3
@@ -104,7 +104,7 @@ entry:
 ;  return result_type_OK7 + UB3 + result_type_OK9 + UB4;
 ;}
 
-; CHECK: define dso_local noundef i32 @_Z11other_typesdix(double noundef %lhs1, i32 noundef %lhs2, i64 noundef %lhs3) {
+; CHECK-LABEL: define dso_local noundef i32 @_Z11other_typesdix(double noundef %lhs1, i32 noundef %lhs2, i64 noundef %lhs3) {
 ; CHECK-NEXT: entry:
 ; CHECK-NEXT: %div = fdiv double %lhs1, 4.000000e+00
 ; CHECK-NEXT: %div1 = fdiv double %lhs1, -4.000000e+00
