@@ -1,84 +1,232 @@
+#define DEBUG_TYPE "kholin-mul-sub-opt"
+
 #include "X86.h"
 #include "X86InstrInfo.h"
 #include "X86Subtarget.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
-#include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/InstrTypes.h"
-#include "llvm/IR/Instructions.h"
-#include "llvm/Passes/PassBuilder.h"
-#include "llvm/Passes/PassPlugin.h"
+#include "llvm/InitializePasses.h"
+#include "llvm/Pass.h"
 #include "llvm/Support/raw_ostream.h"
 
+using namespace llvm;
+
 namespace {
+class MulSubOpt : public MachineFunctionPass {
+public:
+  static char ID;
+  MulSubOpt() : MachineFunctionPass(ID) {}
 
-void visitor(llvm::Function &F) {
-  llvm::SmallVector<llvm::BinaryOperator *, 8> MulSubsToReplace;
+  bool runOnMachineFunction(MachineFunction &MF) override {
+    const X86Subtarget &ST = MF.getSubtarget<X86Subtarget>();
+    const X86InstrInfo *TII = ST.getInstrInfo();
+    const TargetRegisterInfo *TRI = ST.getRegisterInfo();
+    MachineRegisterInfo &MRI = MF.getRegInfo();
 
-  for (auto &BB : F) {
-    for (auto &I : BB) {
-      if (auto *SubOp = llvm::dyn_cast<llvm::BinaryOperator>(&I)) {
-        if (SubOp->getOpcode() == llvm::Instruction::FSub) {
-          llvm::Value *SubOperand = SubOp->getOperand(1);
-          if (auto *MulOp = llvm::dyn_cast<llvm::BinaryOperator>(SubOperand)) {
-            if (MulOp->getOpcode() == llvm::Instruction::FMul) {
-              MulSubsToReplace.push_back(SubOp);
+    errs() << "\n***************************************************\n"
+           << "* Running MulSubOpt on function: " << MF.getName() << "\n"
+           << "***************************************************\n";
+
+    if (!ST.hasFMA()) {
+      errs() << "FMA not support, skipping pass\n";
+      return false;
+    }
+
+    bool Changed = false;
+    SmallVector<MachineInstr *, 16> ToRemove;
+
+    for (auto &MBB : MF) {
+      errs() << "\nProcessing BB: " << MBB.getName() << "\n";
+
+      for (auto &MI : MBB) {
+        errs() << "\nInspecting instruction: ";
+        MI.print(errs());
+        errs() << "  Opcode: " << MI.getOpcode() << "\n";
+
+        if (!isSubtractionOpcode(MI.getOpcode())) {
+          errs() << "  Not SUB instruction, skipping\n";
+          continue;
+        }
+
+        if (MI.getNumOperands() < 3 || !MI.getOperand(0).isReg()) {
+          errs() << "  Doesnt have 3 operands or doesnt define reg, skipping\n";
+          continue;
+        }
+
+        errs() << "  Found SUB instruction!\n";
+
+        Register SubReg = MI.getOperand(0).getReg();
+        Register Op2Reg = MI.getOperand(2).getReg();
+
+        MachineInstr *MulMI = nullptr;
+
+        if (Op2Reg.isVirtual()) {
+          MulMI = MRI.getUniqueVRegDef(Op2Reg);
+          while (MulMI && MulMI->isCopy()) {
+            Register SrcReg = MulMI->getOperand(1).getReg();
+            if (!SrcReg.isVirtual())
+              break;
+            MulMI = MRI.getUniqueVRegDef(SrcReg);
+          }
+        } else {
+          for (auto I = MachineBasicBlock::iterator(&MI), E = MBB.begin();
+               I != E; --I) {
+            if (I->definesRegister(Op2Reg, TRI)) {
+              MulMI = &*I;
+              break;
             }
           }
         }
+
+        if (!MulMI || !isMultiplicationOpcode(MulMI->getOpcode())) {
+          errs() << "  MUL instruction not found or invalid\n";
+          continue;
+        }
+
+        errs() << "  Found MUL instruction:\n";
+        MulMI->print(errs());
+
+        unsigned FMAOpcode = getFMAOpcode(MI.getOpcode());
+        if (!FMAOpcode) {
+          errs() << "  No FMA opcode for SUB opcode: " << MI.getOpcode()
+                 << "\n";
+          continue;
+        }
+
+        errs() << "  Creating FMA instruction with opcode: " << FMAOpcode
+               << "\n";
+        MachineInstrBuilder MIB =
+            BuildMI(MBB, MI, MI.getDebugLoc(), TII->get(FMAOpcode), SubReg);
+
+        MIB.add(MulMI->getOperand(1));
+        MIB.add(MulMI->getOperand(2));
+        MIB.add(MI.getOperand(1));
+
+        for (const MachineOperand &MO : MI.implicit_operands()) {
+          MIB.add(MO);
+        }
+
+        errs() << "  Created new FMA instruction:\n";
+        MIB->print(errs());
+
+        ToRemove.push_back(MulMI);
+        ToRemove.push_back(&MI);
+        Changed = true;
       }
     }
+
+    for (auto *MI : ToRemove) {
+      if (MI->getParent()) {
+        errs() << "Removing instruction: ";
+        MI->print(errs());
+        MI->eraseFromParent();
+      }
+    }
+
+    if (Changed) {
+      errs() << "\nFunction was modified by MulSubOpt\n";
+    } else {
+      errs() << "\nNo changes made to function by MulSubOpt\n";
+    }
+
+    return Changed;
   }
 
-  for (auto *SubOp : MulSubsToReplace) {
-    auto *MulOp = llvm::cast<llvm::BinaryOperator>(SubOp->getOperand(1));
-    llvm::Value *A = MulOp->getOperand(0);
-    llvm::Value *B = MulOp->getOperand(1);
-    llvm::Value *C = SubOp->getOperand(0);
+  StringRef getPassName() const override {
+    return "Fused Multiply-Subtract Optimization";
+  }
 
-    llvm::IRBuilder<> Builder(SubOp);
-
-    llvm::Value *NegA = Builder.CreateFNeg(A);
-    llvm::Value *FMA = Builder.CreateIntrinsic(llvm::Intrinsic::fma,
-                                               NegA->getType(), {NegA, B, C});
-
-    SubOp->replaceAllUsesWith(FMA);
-    SubOp->eraseFromParent();
-    if (MulOp->use_empty()) {
-      MulOp->eraseFromParent();
+private:
+  unsigned getFMAOpcode(unsigned Opcode) const {
+    switch (Opcode) {
+    case X86::SUBSSrr:
+    case X86::VSUBSSrr:
+    case X86::SUBSSrr_Int:
+    case X86::VSUBSSrr_Int:
+      return X86::VFNMADD213SSr;
+    case X86::SUBSDrr:
+    case X86::VSUBSDrr:
+    case X86::SUBSDrr_Int:
+    case X86::VSUBSDrr_Int:
+      return X86::VFNMADD213SDr;
+    case X86::SUBSSrm:
+    case X86::VSUBSSrm:
+    case X86::SUBSSrm_Int:
+    case X86::VSUBSSrm_Int:
+      return X86::VFNMADD213SSm;
+    case X86::SUBSDrm:
+    case X86::VSUBSDrm:
+    case X86::SUBSDrm_Int:
+    case X86::VSUBSDrm_Int:
+      return X86::VFNMADD213SDm;
+    default:
+      return 0;
     }
   }
-}
 
-struct MulSubOptPass : llvm::PassInfoMixin<MulSubOptPass> {
-  llvm::PreservedAnalyses run(llvm::Function &F,
-                              llvm::FunctionAnalysisManager &) {
-    visitor(F);
-    return llvm::PreservedAnalyses::all();
+  bool isSubtractionOpcode(unsigned Opcode) const {
+    switch (Opcode) {
+    case X86::SUBSSrr:
+    case X86::SUBSDrr:
+    case X86::VSUBSSrr:
+    case X86::VSUBSDrr:
+    case X86::SUBSSrm:
+    case X86::SUBSDrm:
+    case X86::VSUBSSrm:
+    case X86::VSUBSDrm:
+    case X86::SUBSSrr_Int:
+    case X86::SUBSDrr_Int:
+    case X86::VSUBSSrr_Int:
+    case X86::VSUBSDrr_Int:
+    case X86::SUBSSrm_Int:
+    case X86::SUBSDrm_Int:
+    case X86::VSUBSSrm_Int:
+    case X86::VSUBSDrm_Int:
+      return true;
+    default:
+      return false;
+    }
   }
 
-  static bool isRequired() { return true; }
+  bool isMultiplicationOpcode(unsigned Opcode) const {
+    switch (Opcode) {
+    case X86::MULSSrr:
+    case X86::MULSDrr:
+    case X86::VMULSSrr:
+    case X86::VMULSDrr:
+    case X86::MULSSrm:
+    case X86::MULSDrm:
+    case X86::VMULSSrm:
+    case X86::VMULSDrm:
+    case X86::MULSSrr_Int:
+    case X86::MULSDrr_Int:
+    case X86::VMULSSrr_Int:
+    case X86::VMULSDrr_Int:
+    case X86::MULSSrm_Int:
+    case X86::MULSDrm_Int:
+    case X86::VMULSSrm_Int:
+    case X86::VMULSDrm_Int:
+      return true;
+    default:
+      return false;
+    }
+  }
 };
 
-} // namespace
+char MulSubOpt::ID = 0;
+} // end anonymous namespace
 
-llvm::PassPluginLibraryInfo getMulSubPluginInfo() {
-  return {LLVM_PLUGIN_API_VERSION, "MulSubPass", LLVM_VERSION_STRING,
-          [](llvm::PassBuilder &PB) {
-            PB.registerPipelineParsingCallback(
-                [](llvm::StringRef Name, llvm::FunctionPassManager &FPM,
-                   llvm::ArrayRef<llvm::PassBuilder::PipelineElement>) {
-                  if (Name == "mulsub-opt-pass") {
-                    FPM.addPass(MulSubOptPass());
-                    return true;
-                  }
-                  return false;
-                });
-          }};
+namespace llvm {
+void initializeMulSubOptPass(PassRegistry &);
 }
 
-extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo
-llvmGetPassPluginInfo() {
-  return getMulSubPluginInfo();
+static RegisterPass<MulSubOpt> X("mul-sub-opt", "MulSubOpt MIR", false, false);
+
+INITIALIZE_PASS(MulSubOpt, "mul-sub-opt",
+                "Fused Multiply-Subtract Optimization", false, false)
+
+extern "C" LLVM_EXTERNAL_VISIBILITY void
+LLVMInitializeMulSubOptPass(llvm::PassRegistry &Registry) {
+  initializeMulSubOptPass(Registry);
 }
