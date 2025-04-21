@@ -215,7 +215,7 @@ private:
 };
 
 char MulSubOpt::ID = 0;
-} // end anonymous namespace!
+} // end anonymous namespace!!
 
 namespace llvm {
 void initializeMulSubOptPass(PassRegistry &);

@@ -58,11 +58,9 @@
 #include "llvm/Transforms/Utils/Cloning.h"
 #include <memory>
 #include <optional>
-
 using namespace llvm;
 
 static codegen::RegisterCodeGenFlags CGF;
-
 
 // General options for llc.  Other pass-specific options are specified
 // within the corresponding llc passes, and target-specific options

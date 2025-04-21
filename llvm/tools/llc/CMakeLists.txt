@@ -26,6 +26,7 @@ set(LLVM_LINK_COMPONENTS
 add_llvm_tool(llc
   llc.cpp
   NewPMDriver.cpp
+
   DEPENDS
   intrinsics_gen
   SUPPORT_PLUGINS
