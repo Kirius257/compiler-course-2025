@@ -215,4 +215,5 @@ private:
 char MulSubOpt::ID = 0;
 } // end anonymous namespace
 
-static llvm::RegisterPass<MulSubOpt> X("mul-sub-opt", "MulSubOpt MIR", false, false);
+static llvm::RegisterPass<MulSubOpt> X("mul-sub-opt", "MulSubOpt MIR", false, 
+                                       false);
